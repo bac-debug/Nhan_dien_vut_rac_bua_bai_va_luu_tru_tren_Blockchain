@@ -1,0 +1,2048 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EcoGuard – Hệ Thống Phát Hiện Vứt Rác Bừa Bãi</title>
+    <meta name="description" content="Hệ thống giám sát và phát hiện hành vi vứt rác bừa bãi theo thời gian thực sử dụng AI.">
+    <!-- ethers.js v6 – tương tác với MetaMask và smart contract -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.1/ethers.umd.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        /* ══════════════════════════════════════════════
+           DESIGN TOKENS
+        ══════════════════════════════════════════════ */
+        :root {
+            --bg-base:        #050810;
+            --bg-surface:     #0c1020;
+            --bg-card:        rgba(14, 20, 38, 0.85);
+            --bg-card-hover:  rgba(18, 26, 50, 0.95);
+            --border:         rgba(255,255,255,0.07);
+            --border-glow:    rgba(99, 179, 237, 0.25);
+
+            --accent-cyan:    #22d3ee;
+            --accent-blue:    #6366f1;
+            --accent-green:   #4ade80;
+            --accent-red:     #f87171;
+            --accent-orange:  #fb923c;
+            --accent-purple:  #a78bfa;
+
+            --text-primary:   #f0f4ff;
+            --text-secondary: #94a3b8;
+            --text-muted:     #475569;
+
+            --glow-cyan:      0 0 20px rgba(34, 211, 238, 0.35);
+            --glow-green:     0 0 20px rgba(74, 222, 128, 0.35);
+            --glow-red:       0 0 20px rgba(248, 113, 113, 0.35);
+            --glow-purple:    0 0 20px rgba(167, 139, 250, 0.35);
+        }
+
+        /* ── Reset ── */
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        /* ── Base ── */
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-base);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* ── Animated background grid ── */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(99,102,241,0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(99,102,241,0.03) 1px, transparent 1px);
+            background-size: 40px 40px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* ── Background radial glow blobs ── */
+        body::after {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background:
+                radial-gradient(ellipse 60% 40% at 10% 10%, rgba(99,102,241,0.10) 0%, transparent 60%),
+                radial-gradient(ellipse 50% 50% at 90% 80%, rgba(34,211,238,0.08) 0%, transparent 60%),
+                radial-gradient(ellipse 40% 30% at 50% 50%, rgba(74,222,128,0.04) 0%, transparent 60%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* ══════════════════════════════════════════════
+           HEADER
+        ══════════════════════════════════════════════ */
+        header {
+            position: sticky;
+            top: 0;
+            z-index: 200;
+            height: 64px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 28px;
+            background: rgba(5, 8, 16, 0.75);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+        }
+
+        .logo-mark {
+            width: 38px;
+            height: 38px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #6366f1 0%, #22d3ee 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            box-shadow: 0 0 16px rgba(99,102,241,0.5);
+            flex-shrink: 0;
+            animation: logoGlow 3s ease-in-out infinite alternate;
+        }
+
+        @keyframes logoGlow {
+            from { box-shadow: 0 0 12px rgba(99,102,241,0.45); }
+            to   { box-shadow: 0 0 24px rgba(34,211,238,0.55); }
+        }
+
+        .logo-text {
+            display: flex;
+            flex-direction: column;
+            line-height: 1.1;
+        }
+
+        .logo-title {
+            font-size: 1rem;
+            font-weight: 700;
+            background: linear-gradient(90deg, #f0f4ff, #94a3b8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: -0.01em;
+        }
+
+        .logo-sub {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            font-weight: 400;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .live-pill {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            padding: 6px 14px;
+            border-radius: 100px;
+            background: rgba(248, 113, 113, 0.1);
+            border: 1px solid rgba(248, 113, 113, 0.3);
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: #fca5a5;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .live-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: #f87171;
+            box-shadow: 0 0 8px #f87171;
+            animation: livePulse 1.4s ease-in-out infinite;
+        }
+
+        @keyframes livePulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50%       { transform: scale(0.6); opacity: 0.4; }
+        }
+
+        .clock {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        /* ══════════════════════════════════════════════
+           MAIN LAYOUT
+        ══════════════════════════════════════════════ */
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1440px;
+            margin: 0 auto;
+            padding: 28px 28px 48px;
+        }
+
+        /* Page title bar */
+        .page-header {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            margin-bottom: 24px;
+        }
+
+        .page-title {
+            font-size: 1.5rem;
+            font-weight: 800;
+            background: linear-gradient(120deg, #f0f4ff 0%, var(--accent-cyan) 60%, var(--accent-blue) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: -0.02em;
+        }
+
+        .page-sub {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        /* ══════════════════════════════════════════════
+           STATS ROW
+        ══════════════════════════════════════════════ */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            position: relative;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 20px 22px;
+            backdrop-filter: blur(12px);
+            overflow: hidden;
+            transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+            cursor: default;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
+            opacity: 0;
+            transition: opacity 0.25s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-3px);
+        }
+
+        /* glow stripe at top */
+        .stat-card::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 16px;
+            right: 16px;
+            height: 1px;
+            border-radius: 1px;
+        }
+
+        /* Persons */
+        .stat-card.persons { border-color: rgba(99,102,241,0.25); }
+        .stat-card.persons:hover { box-shadow: var(--glow-purple); border-color: rgba(99,102,241,0.5); }
+        .stat-card.persons::after { background: linear-gradient(90deg, transparent, #6366f1, transparent); }
+        .stat-card.persons .stat-value { color: var(--accent-purple); }
+        .stat-card.persons .stat-icon-bg { background: rgba(99,102,241,0.12); color: var(--accent-blue); }
+
+        /* Trash */
+        .stat-card.trash { border-color: rgba(74,222,128,0.2); }
+        .stat-card.trash:hover { box-shadow: var(--glow-green); border-color: rgba(74,222,128,0.45); }
+        .stat-card.trash::after { background: linear-gradient(90deg, transparent, #4ade80, transparent); }
+        .stat-card.trash .stat-value { color: var(--accent-green); }
+        .stat-card.trash .stat-icon-bg { background: rgba(74,222,128,0.1); color: var(--accent-green); }
+
+        /* Violations */
+        .stat-card.viols { border-color: rgba(248,113,113,0.2); }
+        .stat-card.viols:hover { box-shadow: var(--glow-red); border-color: rgba(248,113,113,0.45); }
+        .stat-card.viols::after { background: linear-gradient(90deg, transparent, #f87171, transparent); }
+        .stat-card.viols .stat-value { color: var(--accent-red); }
+        .stat-card.viols .stat-icon-bg { background: rgba(248,113,113,0.1); color: var(--accent-red); }
+
+        .stat-top {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            margin-bottom: 14px;
+        }
+
+        .stat-icon-bg {
+            width: 42px;
+            height: 42px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.3rem;
+        }
+
+        .stat-trend {
+            font-size: 0.68rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            padding: 3px 8px;
+            border-radius: 100px;
+            background: rgba(255,255,255,0.04);
+        }
+
+        .stat-label {
+            font-size: 0.72rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+            margin-bottom: 6px;
+        }
+
+        .stat-value {
+            font-size: 2.6rem;
+            font-weight: 800;
+            line-height: 1;
+            font-variant-numeric: tabular-nums;
+            transition: color 0.3s;
+        }
+
+        .stat-desc {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            margin-top: 8px;
+        }
+
+        /* ══════════════════════════════════════════════
+           MAIN GRID: VIDEO + PANEL
+        ══════════════════════════════════════════════ */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+
+        /* ── Card shared ── */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            backdrop-filter: blur(12px);
+            overflow: hidden;
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 20px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .card-title {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .card-title-icon {
+            width: 28px;
+            height: 28px;
+            border-radius: 7px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+
+        /* ── Video Card ── */
+        .video-card {
+            position: relative;
+        }
+
+        .video-card .card-title-icon {
+            background: rgba(34,211,238,0.12);
+        }
+
+        .video-wrapper {
+            position: relative;
+            background: #000;
+            line-height: 0;
+        }
+
+        .video-stream {
+            width: 100%;
+            display: block;
+        }
+
+        /* Gradient overlay at bottom of video */
+        .video-wrapper::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 80px;
+            background: linear-gradient(to top, rgba(5,8,16,0.7), transparent);
+            pointer-events: none;
+        }
+
+        .fps-overlay {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            background: rgba(0,0,0,0.6);
+            border: 1px solid rgba(34,211,238,0.25);
+            color: var(--accent-cyan);
+            padding: 4px 10px;
+            border-radius: 8px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            font-family: 'JetBrains Mono', monospace;
+            backdrop-filter: blur(6px);
+            pointer-events: none;
+        }
+
+        .conn-overlay {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            background: rgba(0,0,0,0.6);
+            border: 1px solid rgba(255,255,255,0.08);
+            padding: 4px 10px;
+            border-radius: 8px;
+            font-size: 0.7rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            backdrop-filter: blur(6px);
+            pointer-events: none;
+        }
+
+        .conn-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--accent-green);
+            box-shadow: 0 0 6px var(--accent-green);
+            transition: background 0.3s, box-shadow 0.3s;
+        }
+
+        .conn-dot.disconnected {
+            background: var(--accent-red);
+            box-shadow: 0 0 6px var(--accent-red);
+        }
+
+        .conn-text {
+            color: var(--text-secondary);
+            transition: color 0.3s;
+        }
+
+        /* ── Info Panel (right column) ── */
+        .info-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .info-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            backdrop-filter: blur(12px);
+            padding: 20px;
+        }
+
+        .info-card-title {
+            font-size: 0.72rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            gap: 7px;
+        }
+
+        /* Activity log */
+        .activity-feed {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: 220px;
+            overflow-y: auto;
+        }
+
+        .activity-feed::-webkit-scrollbar { width: 3px; }
+        .activity-feed::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+        .activity-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+            line-height: 1.4;
+            padding: 8px 10px;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.02);
+            border: 1px solid transparent;
+            transition: border-color 0.2s;
+            animation: fadeSlideIn 0.4s ease;
+        }
+
+        @keyframes fadeSlideIn {
+            from { opacity: 0; transform: translateY(-8px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .activity-item.alert {
+            border-color: rgba(248,113,113,0.2);
+            background: rgba(248,113,113,0.05);
+        }
+
+        .activity-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            margin-top: 4px;
+        }
+
+        .activity-dot.normal { background: var(--accent-cyan); }
+        .activity-dot.warning { background: var(--accent-orange); }
+        .activity-dot.danger { background: var(--accent-red); box-shadow: 0 0 6px var(--accent-red); }
+
+        .activity-time {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            white-space: nowrap;
+        }
+
+        /* System status */
+        .status-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .status-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.78rem;
+        }
+
+        .status-name { color: var(--text-secondary); }
+
+        .status-badge {
+            font-size: 0.68rem;
+            font-weight: 600;
+            padding: 3px 9px;
+            border-radius: 100px;
+        }
+
+        .status-badge.ok {
+            background: rgba(74,222,128,0.1);
+            color: var(--accent-green);
+            border: 1px solid rgba(74,222,128,0.2);
+        }
+
+        .status-badge.warn {
+            background: rgba(251,146,60,0.1);
+            color: var(--accent-orange);
+            border: 1px solid rgba(251,146,60,0.2);
+        }
+
+        /* ══════════════════════════════════════════════
+           VIOLATIONS TABLE
+        ══════════════════════════════════════════════ */
+        .violations-section {}
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .section-title {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-title-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            background: rgba(248,113,113,0.12);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 15px;
+        }
+
+        .count-badge {
+            background: rgba(248,113,113,0.15);
+            border: 1px solid rgba(248,113,113,0.3);
+            color: var(--accent-red);
+            font-size: 0.7rem;
+            font-weight: 700;
+            padding: 2px 9px;
+            border-radius: 100px;
+        }
+
+        .refresh-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(99,102,241,0.12);
+            border: 1px solid rgba(99,102,241,0.3);
+            color: var(--accent-purple);
+            padding: 7px 16px;
+            border-radius: 8px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .refresh-btn:hover {
+            background: rgba(99,102,241,0.22);
+            border-color: rgba(99,102,241,0.55);
+            box-shadow: 0 0 12px rgba(99,102,241,0.2);
+            transform: translateY(-1px);
+        }
+
+        .refresh-btn:active { transform: translateY(0); }
+
+        .refresh-icon {
+            display: inline-block;
+            transition: transform 0.4s ease;
+        }
+
+        .refresh-btn:hover .refresh-icon { transform: rotate(180deg); }
+
+        /* Table container */
+        .table-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            backdrop-filter: blur(12px);
+            overflow: hidden;
+        }
+
+        .table-scroll {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead th {
+            padding: 13px 18px;
+            text-align: left;
+            font-size: 0.68rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+            background: rgba(0,0,0,0.25);
+            border-bottom: 1px solid var(--border);
+            white-space: nowrap;
+        }
+
+        thead th:first-child { border-radius: 0; }
+
+        tbody tr {
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+            transition: background 0.15s ease;
+        }
+
+        tbody tr:last-child { border-bottom: none; }
+
+        tbody tr:hover { background: rgba(99,102,241,0.04); }
+
+        td {
+            padding: 14px 18px;
+            font-size: 0.83rem;
+            vertical-align: middle;
+        }
+
+        .td-id {
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+        }
+
+        .violation-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(248,113,113,0.1);
+            border: 1px solid rgba(248,113,113,0.25);
+            color: #fca5a5;
+            padding: 4px 12px;
+            border-radius: 100px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .violation-img {
+            width: 130px;
+            height: 76px;
+            object-fit: cover;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+        }
+
+        .violation-img:hover {
+            transform: scale(1.07);
+            box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+            border-color: rgba(99,102,241,0.4);
+        }
+
+        .time-cell {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .time-date {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .time-ago {
+            font-size: 0.68rem;
+            color: var(--text-muted);
+        }
+
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            padding: 56px 24px;
+        }
+
+        .empty-icon {
+            font-size: 3.5rem;
+            margin-bottom: 14px;
+            display: block;
+            filter: grayscale(0.3);
+        }
+
+        .empty-title {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
+        }
+
+        .empty-desc {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        /* Pulse animation on new row */
+        @keyframes rowHighlight {
+            0%   { background: rgba(248,113,113,0.12); }
+            100% { background: transparent; }
+        }
+
+        tbody tr.new-row { animation: rowHighlight 1.5s ease-out forwards; }
+
+        /* ══════════════════════════════════════════════
+           LIGHTBOX
+        ══════════════════════════════════════════════ */
+        .lightbox {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 999;
+            background: rgba(0,0,0,0.88);
+            backdrop-filter: blur(10px);
+            align-items: center;
+            justify-content: center;
+            cursor: zoom-out;
+        }
+
+        .lightbox.active { display: flex; }
+
+        .lightbox-inner {
+            position: relative;
+            max-width: 90vw;
+            max-height: 88vh;
+        }
+
+        .lightbox img {
+            display: block;
+            max-width: 100%;
+            max-height: 88vh;
+            border-radius: 12px;
+            box-shadow: 0 30px 80px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.06);
+            animation: lbZoom 0.2s ease;
+        }
+
+        @keyframes lbZoom {
+            from { transform: scale(0.92); opacity: 0; }
+            to   { transform: scale(1); opacity: 1; }
+        }
+
+        .lightbox-close {
+            position: absolute;
+            top: -14px;
+            right: -14px;
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            background: rgba(248,113,113,0.15);
+            border: 1px solid rgba(248,113,113,0.3);
+            color: var(--accent-red);
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.2s;
+            line-height: 1;
+        }
+
+        .lightbox-close:hover { background: rgba(248,113,113,0.3); transform: scale(1.1); }
+
+        .lightbox-caption {
+            position: absolute;
+            bottom: -36px;
+            left: 0;
+            right: 0;
+            text-align: center;
+            font-size: 0.78rem;
+            color: var(--text-muted);
+        }
+
+        /* ══════════════════════════════════════════════
+           SCROLLBAR
+        ══════════════════════════════════════════════ */
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.18); }
+
+        /* ══════════════════════════════════════════════
+           RESPONSIVE
+        ══════════════════════════════════════════════ */
+        @media (max-width: 1024px) {
+            .main-grid { grid-template-columns: 1fr; }
+            .info-panel { flex-direction: row; }
+            .info-card { flex: 1; }
+        }
+
+        @media (max-width: 720px) {
+            .stats-row { grid-template-columns: 1fr 1fr; }
+            .info-panel { flex-direction: column; }
+            .container { padding: 16px; }
+            .stat-value { font-size: 2rem; }
+        }
+
+        @media (max-width: 480px) {
+            .stats-row { grid-template-columns: 1fr; }
+            header { padding: 0 16px; }
+            .logo-sub { display: none; }
+        }
+
+        /* ══════════════════════════════════════════════
+           BLOCKCHAIN / METAMASK
+        ══════════════════════════════════════════════ */
+        .metamask-btn {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            padding: 7px 15px;
+            border-radius: 10px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            cursor: pointer;
+            border: 1px solid rgba(251,146,60,0.4);
+            background: rgba(251,146,60,0.1);
+            color: #fb923c;
+            font-family: 'Inter', sans-serif;
+            transition: all 0.2s ease;
+        }
+        .metamask-btn:hover {
+            background: rgba(251,146,60,0.22);
+            box-shadow: 0 0 14px rgba(251,146,60,0.25);
+            transform: translateY(-1px);
+        }
+        .metamask-btn.connected {
+            border-color: rgba(74,222,128,0.4);
+            background: rgba(74,222,128,0.1);
+            color: var(--accent-green);
+        }
+        .metamask-icon { font-size: 1.1rem; }
+        .wallet-addr {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.68rem;
+            opacity: 0.8;
+        }
+
+        /* Blockchain badge trong bảng */
+        .chain-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 5px 12px;
+            border-radius: 8px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            cursor: pointer;
+            border: 1px solid rgba(251,146,60,0.35);
+            background: rgba(251,146,60,0.08);
+            color: #fb923c;
+            font-family: 'Inter', sans-serif;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        .chain-btn:hover:not(:disabled) {
+            background: rgba(251,146,60,0.2);
+            box-shadow: 0 0 10px rgba(251,146,60,0.2);
+        }
+        .chain-btn:disabled {
+            cursor: default;
+            opacity: 0.6;
+        }
+        .chain-btn.recorded {
+            border-color: rgba(74,222,128,0.35);
+            background: rgba(74,222,128,0.08);
+            color: var(--accent-green);
+        }
+        .chain-btn.loading {
+            animation: chainPulse 1s ease-in-out infinite;
+        }
+        @keyframes chainPulse {
+            0%,100% { opacity: 1; }
+            50%      { opacity: 0.5; }
+        }
+
+        /* TX Hash modal */
+        .tx-modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 1000;
+            background: rgba(0,0,0,0.8);
+            backdrop-filter: blur(12px);
+            align-items: center;
+            justify-content: center;
+        }
+        .tx-modal.active { display: flex; }
+        .tx-modal-inner {
+            background: var(--bg-card);
+            border: 1px solid rgba(74,222,128,0.3);
+            border-radius: 20px;
+            padding: 32px;
+            max-width: 520px;
+            width: 90%;
+            box-shadow: 0 0 60px rgba(74,222,128,0.15);
+            animation: lbZoom 0.2s ease;
+        }
+        .tx-modal-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--accent-green);
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .tx-modal-sub {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-bottom: 20px;
+        }
+        .tx-field-label {
+            font-size: 0.68rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+            margin-bottom: 5px;
+        }
+        .tx-field-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.72rem;
+            color: var(--accent-cyan);
+            background: rgba(0,0,0,0.3);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px 12px;
+            word-break: break-all;
+            margin-bottom: 14px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .tx-field-value:hover { background: rgba(34,211,238,0.08); }
+        .tx-etherscan-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--accent-cyan);
+            font-size: 0.8rem;
+            text-decoration: none;
+            padding: 8px 16px;
+            border: 1px solid rgba(34,211,238,0.3);
+            border-radius: 8px;
+            transition: all 0.2s;
+            margin-top: 4px;
+        }
+        .tx-etherscan-link:hover {
+            background: rgba(34,211,238,0.1);
+            box-shadow: 0 0 10px rgba(34,211,238,0.2);
+        }
+        .tx-modal-close-btn {
+            float: right;
+            background: rgba(248,113,113,0.1);
+            border: 1px solid rgba(248,113,113,0.3);
+            color: var(--accent-red);
+            padding: 6px 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.78rem;
+            font-weight: 600;
+            margin-top: 16px;
+            font-family: 'Inter', sans-serif;
+            transition: background 0.2s;
+        }
+        .tx-modal-close-btn:hover { background: rgba(248,113,113,0.25); }
+
+        /* ══════════════════════════════════════════════
+           IMAGE HASH CHECKER
+        ══════════════════════════════════════════════ */
+        .checker-section {
+            margin-bottom: 32px;
+        }
+
+        .checker-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            align-items: start;
+        }
+
+        @media (max-width: 860px) {
+            .checker-grid { grid-template-columns: 1fr; }
+        }
+
+        /* Drop zone */
+        .drop-zone {
+            background: var(--bg-card);
+            border: 2px dashed rgba(99,102,241,0.35);
+            border-radius: 16px;
+            padding: 36px 24px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 14px;
+            cursor: pointer;
+            transition: border-color 0.25s, background 0.25s, box-shadow 0.25s;
+            min-height: 220px;
+            position: relative;
+            text-align: center;
+        }
+
+        .drop-zone:hover,
+        .drop-zone.dragover {
+            border-color: var(--accent-blue);
+            background: rgba(99,102,241,0.06);
+            box-shadow: 0 0 24px rgba(99,102,241,0.15);
+        }
+
+        .drop-zone input[type="file"] {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            cursor: pointer;
+            width: 100%;
+            height: 100%;
+        }
+
+        .drop-icon {
+            font-size: 3rem;
+            line-height: 1;
+            filter: drop-shadow(0 0 12px rgba(99,102,241,0.5));
+        }
+
+        .drop-title {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .drop-sub {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        /* Preview image */
+        .drop-preview {
+            width: 100%;
+            height: 180px;
+            object-fit: cover;
+            border-radius: 10px;
+            display: none;
+            border: 1px solid var(--border);
+        }
+
+        /* Check button */
+        .check-btn {
+            width: 100%;
+            padding: 12px 0;
+            border-radius: 10px;
+            border: none;
+            background: linear-gradient(135deg, #6366f1 0%, #22d3ee 100%);
+            color: #fff;
+            font-size: 0.88rem;
+            font-weight: 700;
+            cursor: pointer;
+            margin-top: 4px;
+            font-family: 'Inter', sans-serif;
+            transition: opacity 0.2s, transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 4px 18px rgba(99,102,241,0.35);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .check-btn:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        .check-btn:not(:disabled):hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 28px rgba(99,102,241,0.45);
+        }
+
+        /* Result card */
+        .checker-result {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 28px;
+            min-height: 220px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            text-align: center;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+
+        .checker-result.found {
+            border-color: rgba(248,113,113,0.4);
+            box-shadow: var(--glow-red);
+        }
+
+        .checker-result.not-found {
+            border-color: rgba(74,222,128,0.4);
+            box-shadow: var(--glow-green);
+        }
+
+        .result-icon {
+            font-size: 3.5rem;
+            animation: resultPop 0.4s cubic-bezier(.34,1.56,.64,1);
+        }
+
+        @keyframes resultPop {
+            from { transform: scale(0.5); opacity: 0; }
+            to   { transform: scale(1);   opacity: 1; }
+        }
+
+        .result-title {
+            font-size: 1.1rem;
+            font-weight: 800;
+            line-height: 1.2;
+        }
+
+        .result-title.found  { color: var(--accent-red); }
+        .result-title.not-found { color: var(--accent-green); }
+
+        .result-sub {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            max-width: 280px;
+        }
+
+        .result-hash {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            background: rgba(0,0,0,0.3);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 8px 12px;
+            word-break: break-all;
+            text-align: left;
+            width: 100%;
+            line-height: 1.6;
+        }
+
+        .result-detail {
+            width: 100%;
+            background: rgba(248,113,113,0.05);
+            border: 1px solid rgba(248,113,113,0.15);
+            border-radius: 10px;
+            padding: 14px 16px;
+            text-align: left;
+            display: flex;
+            flex-direction: column;
+            gap: 7px;
+        }
+
+        .result-detail-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.77rem;
+            gap: 8px;
+        }
+
+        .result-detail-label {
+            color: var(--text-muted);
+            font-weight: 500;
+            white-space: nowrap;
+        }
+
+        .result-detail-value {
+            color: var(--text-secondary);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.72rem;
+            text-align: right;
+            word-break: break-all;
+        }
+
+        .checker-idle-text {
+            font-size: 0.82rem;
+            color: var(--text-muted);
+        }
+    </style>
+</head>
+<body>
+
+<!-- ════════════ HEADER ════════════ -->
+<header>
+    <div class="logo">
+        <div class="logo-mark">🚯</div>
+        <div class="logo-text">
+            <span class="logo-title">EcoGuard AI</span>
+            <span class="logo-sub">Hệ thống giám sát thông minh</span>
+        </div>
+    </div>
+    <div class="header-right">
+        <span class="clock" id="header-clock">--:--:--</span>
+        <!-- Blockchain auto status indicator -->
+        <div class="metamask-btn" id="chain-status-chip" style="cursor:default">
+            <span class="metamask-icon" id="chain-icon">⛓️</span>
+            <span id="chain-label">Blockchain: Đang kết nối...</span>
+        </div>
+        <div class="live-pill">
+            <div class="live-dot"></div>
+            LIVE
+        </div>
+    </div>
+</header>
+
+<!-- ════════════ MAIN CONTENT ════════════ -->
+<div class="container">
+
+    <!-- Page heading -->
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Trung Tâm Giám Sát</h1>
+            <p class="page-sub">Phát hiện hành vi vứt rác bừa bãi theo thời gian thực bằng AI</p>
+        </div>
+    </div>
+
+    <!-- ── Stats Row ── -->
+    <div class="stats-row">
+
+        <div class="stat-card persons" id="card-persons">
+            <div class="stat-top">
+                <div class="stat-icon-bg">👤</div>
+                <span class="stat-trend" id="trend-persons">Realtime</span>
+            </div>
+            <div class="stat-label">Người trong khung hình</div>
+            <div class="stat-value" id="stat-persons">0</div>
+            <div class="stat-desc">Đang theo dõi chuyển động</div>
+        </div>
+
+        <div class="stat-card trash" id="card-trash">
+            <div class="stat-top">
+                <div class="stat-icon-bg">🗑️</div>
+                <span class="stat-trend" id="trend-trash">Realtime</span>
+            </div>
+            <div class="stat-label">Vật thể rác phát hiện</div>
+            <div class="stat-value" id="stat-trash">0</div>
+            <div class="stat-desc">Nhận diện qua AI model</div>
+        </div>
+
+        <div class="stat-card viols" id="card-viols">
+            <div class="stat-top">
+                <div class="stat-icon-bg">🚨</div>
+                <span class="stat-trend" id="trend-viols">Tổng cộng</span>
+            </div>
+            <div class="stat-label">Vi phạm ghi nhận</div>
+            <div class="stat-value" id="stat-viols">0</div>
+            <div class="stat-desc">Kể từ khi khởi động</div>
+        </div>
+
+    </div>
+
+    <!-- ── Main Grid: Video + Info ── -->
+    <div class="main-grid">
+
+        <!-- Video Stream -->
+        <div class="card video-card">
+            <div class="card-header" style="display: flex; align-items: center; justify-content: space-between;">
+                <div class="card-title">
+                    <div class="card-title-icon">📹</div>
+                    Camera Feed – Thời Gian Thực
+                </div>
+                <!-- Dropdown chọn nguồn video (tự động từ API) -->
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <label for="video-source-select" style="font-size: 0.72rem; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Nguồn:</label>
+                    <select id="video-source-select" onchange="changeVideoSource(this.value)" style="background: rgba(0,0,0,0.5); border: 1px solid var(--border); color: var(--text-primary); border-radius: 8px; padding: 5px 12px 5px 8px; font-size: 0.75rem; font-family: 'Inter', sans-serif; cursor: pointer; outline: none; transition: border-color 0.2s; max-width: 260px;">
+                        <option value="webcam">📹 Webcam trực tiếp</option>
+                    </select>
+                    <button onclick="loadVideoList()" title="Làm mới danh sách video" style="background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.3); color: var(--accent-purple); border-radius: 8px; padding: 5px 10px; font-size: 0.85rem; cursor: pointer; transition: all 0.2s; line-height:1;" onmouseover="this.style.background='rgba(99,102,241,0.22)'" onmouseout="this.style.background='rgba(99,102,241,0.1)'">↻</button>
+                </div>
+            </div>
+            <div class="video-wrapper">
+                <img class="video-stream" id="video-frame" alt="Live detection feed">
+                <div class="fps-overlay" id="fps-display">-- FPS</div>
+                <div class="conn-overlay">
+                    <div class="conn-dot" id="conn-dot"></div>
+                    <span class="conn-text" id="conn-text">Đang kết nối…</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Info Panel -->
+        <div class="info-panel">
+
+            <!-- Activity log -->
+            <div class="info-card">
+                <div class="info-card-title">
+                    <span>⚡</span> Nhật Ký Hoạt Động
+                </div>
+                <div class="activity-feed" id="activity-feed">
+                    <div class="activity-item">
+                        <div class="activity-dot normal"></div>
+                        <div>
+                            <div>Hệ thống khởi động thành công</div>
+                            <div class="activity-time" id="start-time">--:--:--</div>
+                        </div>
+                    </div>
+                    <div class="activity-item">
+                        <div class="activity-dot normal"></div>
+                        <div>
+                            <div>Đang chờ camera stream…</div>
+                            <div class="activity-time">--</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- System status -->
+            <div class="info-card">
+                <div class="info-card-title">
+                    <span>🔧</span> Trạng Thái Hệ Thống
+                </div>
+                <div class="status-list">
+                    <div class="status-row">
+                        <span class="status-name">Camera</span>
+                        <span class="status-badge ok" id="status-camera">Hoạt động</span>
+                    </div>
+                    <div class="status-row">
+                        <span class="status-name">AI Model (Garbage)</span>
+                        <span class="status-badge ok">Sẵn sàng</span>
+                    </div>
+                    <div class="status-row">
+                        <span class="status-name">AI Model (Person)</span>
+                        <span class="status-badge ok">Sẵn sàng</span>
+                    </div>
+                    <div class="status-row">
+                        <span class="status-name">Database</span>
+                        <span class="status-badge ok">Kết nối</span>
+                    </div>
+                    <div class="status-row">
+                        <span class="status-name">WebSocket</span>
+                        <span class="status-badge warn" id="status-ws">Đang kết nối</span>
+                    </div>
+                    <div class="status-row">
+                        <span class="status-name">Blockchain</span>
+                        <span class="status-badge warn" id="status-blockchain">Chưa kết nối</span>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ── Violations Table ── -->
+    <div class="violations-section">
+        <div class="section-header">
+            <div class="section-title">
+                <div class="section-title-icon">⚠️</div>
+                Danh Sách Vi Phạm
+                <span class="count-badge" id="viol-count">0</span>
+            </div>
+            <button class="refresh-btn" id="refresh-btn" onclick="loadViolations()">
+                <span class="refresh-icon">↻</span>
+                Làm mới
+            </button>
+        </div>
+
+        <div class="table-card">
+            <div class="table-scroll">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>ID Vụ Vi Phạm</th>
+                            <th>Hình Ảnh Bằng Chứng</th>
+                            <th>Thời Gian</th>
+                            <th>Trạng Thái</th>
+                            <th>⛓️ Blockchain</th>
+                        </tr>
+                    </thead>
+                    <tbody id="violations-body">
+                        <tr>
+                            <td colspan="6">
+                                <div class="empty-state">
+                                    <span class="empty-icon">👁️</span>
+                                    <div class="empty-title">Chưa phát hiện vi phạm</div>
+                                    <div class="empty-desc">Hệ thống đang theo dõi và sẽ ghi nhận khi có vi phạm xảy ra</div>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- ════════════ IMAGE HASH CHECKER SECTION ════════════ -->
+<div class="container" style="padding-top: 0;">
+    <div class="checker-section">
+
+        <div class="section-header">
+            <div class="section-title">
+                <div class="section-title-icon" style="background: rgba(99,102,241,0.12); font-size: 16px;">🔍</div>
+                Kiểm Tra Hình Ảnh Vi Phạm
+            </div>
+        </div>
+
+        <div class="checker-grid">
+
+            <!-- Upload zone -->
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+                <div class="drop-zone" id="drop-zone">
+                    <input type="file" id="checker-file-input" accept="image/*"
+                           onchange="onCheckerFileChange(event)">
+                    <img class="drop-preview" id="drop-preview" alt="Preview">
+                    <div id="drop-placeholder">
+                        <div class="drop-icon">🖼️</div>
+                        <div class="drop-title">Kéo thả hoặc click để chọn ảnh</div>
+                        <div class="drop-sub">Hỗ trợ JPG, PNG, WEBP &mdash; hệ thống sẽ tính SHA-256 và so sánh với dữ liệu vi phạm</div>
+                    </div>
+                </div>
+                <button class="check-btn" id="check-btn" onclick="runHashCheck()" disabled>
+                    <span id="check-btn-icon">🔎</span>
+                    <span id="check-btn-label">Kiểm tra ảnh này</span>
+                </button>
+            </div>
+
+            <!-- Result panel -->
+            <div class="checker-result" id="checker-result">
+                <div class="drop-icon">🔍</div>
+                <p class="checker-idle-text">Chọn ảnh ở bên trái rồi nhấn <strong>"Kiểm tra"</strong> để xác minh</p>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<!-- ════════════ LIGHTBOX ════════════ -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+    <div class="lightbox-inner" onclick="event.stopPropagation()">
+        <div class="lightbox-close" onclick="closeLightbox()" title="Đóng">✕</div>
+        <img id="lightbox-img" src="" alt="Evidence">
+        <div class="lightbox-caption" id="lightbox-caption">Hình ảnh bằng chứng</div>
+    </div>
+</div>
+
+<script>
+    // ═══════════════════════════════════════════════════
+    //  CLOCK
+    // ═══════════════════════════════════════════════════
+    const clockEl = document.getElementById('header-clock');
+    const startTimeEl = document.getElementById('start-time');
+
+    function tickClock() {
+        const now = new Date();
+        const timeStr = now.toLocaleTimeString('vi-VN', { hour12: false });
+        clockEl.textContent = timeStr;
+    }
+
+    tickClock();
+    setInterval(tickClock, 1000);
+
+    startTimeEl.textContent = new Date().toLocaleTimeString('vi-VN', { hour12: false });
+
+    // ═══════════════════════════════════════════════════
+    //  ACTIVITY LOG
+    // ═══════════════════════════════════════════════════
+    const activityFeed = document.getElementById('activity-feed');
+
+    function addActivity(message, type = 'normal') {
+        const item = document.createElement('div');
+        item.className = `activity-item${type === 'danger' ? ' alert' : ''}`;
+
+        const dotClass = type === 'danger' ? 'danger' : type === 'warning' ? 'warning' : 'normal';
+        const timeStr = new Date().toLocaleTimeString('vi-VN', { hour12: false });
+
+        item.innerHTML = `
+            <div class="activity-dot ${dotClass}"></div>
+            <div>
+                <div>${message}</div>
+                <div class="activity-time">${timeStr}</div>
+            </div>
+        `;
+
+        activityFeed.insertBefore(item, activityFeed.firstChild);
+
+        // Keep max 12 items
+        while (activityFeed.children.length > 12) {
+            activityFeed.removeChild(activityFeed.lastChild);
+        }
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  VIDEO STREAM via WebSocket
+    // ═══════════════════════════════════════════════════
+    const videoFrame = document.getElementById('video-frame');
+    const fpsDisplay = document.getElementById('fps-display');
+    const connDot    = document.getElementById('conn-dot');
+    const connText   = document.getElementById('conn-text');
+    const statusWs   = document.getElementById('status-ws');
+    const statusCam  = document.getElementById('status-camera');
+
+    let frameCount = 0;
+    let lastFpsTime = performance.now();
+
+    function updateFpsCounter() {
+        frameCount++;
+        const now = performance.now();
+        const elapsed = now - lastFpsTime;
+        if (elapsed >= 1000) {
+            const fps = Math.round((frameCount * 1000) / elapsed);
+            fpsDisplay.textContent = fps + ' FPS';
+            frameCount = 0;
+            lastFpsTime = now;
+        }
+    }
+
+    let isConnected = false;
+
+    function setConnected(connected) {
+        if (connected === isConnected) return;
+        isConnected = connected;
+        if (connected) {
+            connDot.classList.remove('disconnected');
+            connText.textContent = 'Đang phát';
+            connText.style.color = 'var(--accent-green)';
+            statusWs.textContent = 'Đã kết nối';
+            statusWs.className = 'status-badge ok';
+            statusCam.textContent = 'Hoạt động';
+            statusCam.className = 'status-badge ok';
+            addActivity('Camera stream kết nối thành công', 'normal');
+        } else {
+            connDot.classList.add('disconnected');
+            connText.textContent = 'Mất kết nối';
+            connText.style.color = 'var(--accent-red)';
+            statusWs.textContent = 'Ngắt kết nối';
+            statusWs.className = 'status-badge warn';
+            addActivity('Mất kết nối camera – đang thử lại…', 'warning');
+        }
+    }
+
+    let previousBlobUrl = null;
+
+    function connectWebSocket() {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/ws_feed`;
+        const ws = new WebSocket(wsUrl);
+
+        ws.onopen = () => setConnected(true);
+
+        ws.onmessage = (event) => {
+            const newUrl = URL.createObjectURL(event.data);
+            videoFrame.src = newUrl;
+            if (previousBlobUrl) URL.revokeObjectURL(previousBlobUrl);
+            previousBlobUrl = newUrl;
+            updateFpsCounter();
+        };
+
+        ws.onclose = () => {
+            setConnected(false);
+            setTimeout(connectWebSocket, 2000);
+        };
+
+        ws.onerror = () => ws.close();
+    }
+
+    connectWebSocket();
+
+    // ═══════════════════════════════════════════════════
+    //  STATS POLLING
+    // ═══════════════════════════════════════════════════
+    let prevViolCount = 0;
+
+    // ═══════════════════════════════════════════════════
+    //  LOAD DANH SÁCH VIDEO TỰ ĐỘNG TỪ API
+    // ═══════════════════════════════════════════════════
+    let _currentVideoSource = 'webcam'; // theo dõi nguồn hiện tại
+
+    function loadVideoList() {
+        fetch('/api/list_videos')
+            .then(r => r.json())
+            .then(videos => {
+                const sel = document.getElementById('video-source-select');
+                const prev = sel.value;
+
+                // Xóa tất cả option cũ, giữ lại Webcam
+                sel.innerHTML = '<option value="webcam">📹 Webcam trực tiếp</option>';
+
+                // Thêm từng video tìm được
+                videos.forEach(v => {
+                    const opt = document.createElement('option');
+                    opt.value = v.filename;
+                    opt.textContent = `🎞️ ${v.filename}  (${v.size_mb} MB)`;
+                    sel.appendChild(opt);
+                });
+
+                // Khôi phục lựa chọn hiện tại nếu còn tồn tại
+                if ([...sel.options].some(o => o.value === _currentVideoSource)) {
+                    sel.value = _currentVideoSource;
+                } else {
+                    sel.value = 'webcam';
+                }
+            })
+            .catch(err => console.warn('Không lấy được danh sách video:', err));
+    }
+
+    // Load lần đầu khi trang khởi động
+    loadVideoList();
+
+    function changeVideoSource(src) {
+        const label = src === 'webcam' ? 'Webcam' : src;
+        addActivity(`Đang chuyển nguồn video sang ${label}...`, 'warning');
+        fetch('/api/select_source', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ source: src })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'ok') {
+                _currentVideoSource = src;
+                addActivity(`✅ Đã chuyển sang: ${data.source}`, 'normal');
+            } else {
+                addActivity(`❌ Lỗi: ${data.error || 'Không thể chuyển nguồn video'}`, 'warning');
+            }
+        })
+        .catch(err => {
+            console.error('Lỗi API source select:', err);
+            addActivity(`Lỗi kết nối khi chuyển nguồn!`, 'warning');
+        });
+    }
+
+    function updateStats() {
+        fetch('/stats')
+            .then(r => r.json())
+            .then(data => {
+                const newViols = data.violations || 0;
+
+                document.getElementById('stat-persons').textContent = data.persons || 0;
+                document.getElementById('stat-trash').textContent   = data.trash || 0;
+                document.getElementById('stat-viols').textContent   = newViols;
+                document.getElementById('viol-count').textContent   = newViols;
+
+                if (data.source) {
+                    const currentFile = data.source === 'webcam' ? 'webcam' : data.source_label || data.source;
+                    _currentVideoSource = currentFile;
+                    const selectEl = document.getElementById('video-source-select');
+                    if (selectEl && selectEl.value !== currentFile) {
+                        // Nếu option chưa có thì reload danh sách
+                        if (![...selectEl.options].some(o => o.value === currentFile)) {
+                            loadVideoList();
+                        } else {
+                            selectEl.value = currentFile;
+                        }
+                    }
+                }
+
+                if (newViols > prevViolCount) {
+                    const diff = newViols - prevViolCount;
+                    addActivity(`🚨 Phát hiện ${diff} vi phạm mới!`, 'danger');
+                    prevViolCount = newViols;
+                }
+            })
+            .catch(() => {});
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  VIOLATIONS TABLE
+    // ═══════════════════════════════════════════════════
+    let previousRowCount = 0;
+
+    function loadViolations() {
+        fetch('/violations_data')
+            .then(r => r.json())
+            .then(rows => {
+                const tbody = document.getElementById('violations-body');
+
+                if (!rows.length) {
+                    tbody.innerHTML = `<tr><td colspan="6">
+                        <div class="empty-state">
+                            <span class="empty-icon">👁️</span>
+                            <div class="empty-title">Chưa phát hiện vi phạm</div>
+                            <div class="empty-desc">Hệ thống đang theo dõi và sẽ ghi nhận khi có vi phạm xảy ra</div>
+                        </div></td></tr>`;
+                    previousRowCount = 0;
+                    return;
+                }
+
+                const sorted = [...rows].reverse();
+                const isNew  = sorted.length > previousRowCount;
+
+                tbody.innerHTML = sorted.map((v, idx) => {
+                    const imgSrc = '/' + v.image;
+                    const timeFormatted = v.time.replace(
+                        /(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/,
+                        '$3/$2/$1 $4:$5:$6'
+                    );
+                    const rowClass = isNew && idx === 0 ? ' class="new-row"' : '';
+
+                    // ── Cột Blockchain: hiển thị TX hash hoặc trạng thái chờ
+                    let chainCell;
+                    if (v.tx_hash) {
+                        const short = v.tx_hash.slice(0, 10) + '...' + v.tx_hash.slice(-6);
+                        chainCell = `<a href="https://sepolia.etherscan.io/tx/${v.tx_hash}"
+                                        target="_blank"
+                                        class="chain-btn recorded"
+                                        title="${v.tx_hash}">
+                                        ✅ ${short}
+                                    </a>`;
+                    } else if (v.hash) {
+                        chainCell = `<span class="chain-btn loading" title="SHA-256: ${v.hash}">⏳ Đang ghi...</span>`;
+                    } else {
+                        chainCell = `<span class="chain-btn" style="opacity:.4;cursor:default">— Chưa có hash</span>`;
+                    }
+
+                    return `<tr${rowClass}>
+                        <td class="td-id">${v.id}</td>
+                        <td><span class="violation-badge">🗑️ Rác #${v.person_id}</span></td>
+                        <td>
+                            <img class="violation-img"
+                                 src="${imgSrc}"
+                                 onclick="openLightbox('${imgSrc}', '${timeFormatted}')"
+                                 alt="Evidence #${v.id}"
+                                 loading="lazy">
+                        </td>
+                        <td>
+                            <div class="time-cell">
+                                <span class="time-date">${timeFormatted}</span>
+                            </div>
+                        </td>
+                        <td><span class="status-badge ok">Đã ghi nhận</span></td>
+                        <td>${chainCell}</td>
+                    </tr>`;
+                }).join('');
+
+                previousRowCount = sorted.length;
+            })
+            .catch(() => {});
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  LIGHTBOX
+    // ═══════════════════════════════════════════════════
+    function openLightbox(src, caption) {
+        document.getElementById('lightbox-img').src = src;
+        document.getElementById('lightbox-caption').textContent = caption || 'Hình ảnh bằng chứng';
+        document.getElementById('lightbox').classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeLightbox() {
+        document.getElementById('lightbox').classList.remove('active');
+        document.body.style.overflow = '';
+    }
+
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') closeLightbox();
+    });
+
+    // ═══════════════════════════════════════════════════
+    //  BLOCKCHAIN STATUS (auto polling – không cần MetaMask)
+    // ═══════════════════════════════════════════════════
+    const chainChip   = document.getElementById('chain-status-chip');
+    const chainLabel  = document.getElementById('chain-label');
+    const chainIcon   = document.getElementById('chain-icon');
+    const chainStatus = document.getElementById('status-blockchain');
+
+    function pollBlockchainStatus() {
+        fetch('/api/blockchain_status')
+            .then(r => r.json())
+            .then(data => {
+                if (data.connected) {
+                    const short = data.wallet
+                        ? data.wallet.slice(0,6) + '...' + data.wallet.slice(-4)
+                        : '';
+                    chainIcon.textContent  = '✅';
+                    chainLabel.textContent = `Blockchain: ${data.network} (${short})`;
+                    chainChip.classList.add('connected');
+                    chainStatus.textContent  = 'Kết nối';
+                    chainStatus.className    = 'status-badge ok';
+                } else {
+                    chainIcon.textContent  = '⛓️';
+                    chainLabel.textContent = data.error
+                        ? `Blockchain: ${data.error.slice(0,40)}...`
+                        : 'Blockchain: Chưa kết nối';
+                    chainChip.classList.remove('connected');
+                    chainStatus.textContent  = data.error ? 'Lỗi cấu hình' : 'Chưa kết nối';
+                    chainStatus.className    = 'status-badge warn';
+                }
+            })
+            .catch(() => {});
+    }
+
+    // Utility: copy to clipboard
+    function copyText(txt) {
+        navigator.clipboard.writeText(txt).then(() => {
+            alert('Cư dán vào clipboard!');
+        });
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  INIT
+    // ═══════════════════════════════════════════════════
+    updateStats();
+    loadViolations();
+    pollBlockchainStatus();
+    setInterval(updateStats, 2000);
+    setInterval(loadViolations, 3000);   // refresh nhanh hơn để bắt tx_hash mới
+    setInterval(pollBlockchainStatus, 10000);
+
+    // ═══════════════════════════════════════════════════
+    //  IMAGE HASH CHECKER
+    // ═══════════════════════════════════════════════════
+    let checkerFile = null;
+
+    const dropZone    = document.getElementById('drop-zone');
+    const dropPreview = document.getElementById('drop-preview');
+    const dropPlaceholder = document.getElementById('drop-placeholder');
+    const checkBtn    = document.getElementById('check-btn');
+
+    // Drag & Drop events
+    dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropZone.classList.add('dragover');
+    });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('dragover');
+        const file = e.dataTransfer.files[0];
+        if (file && file.type.startsWith('image/')) {
+            setCheckerFile(file);
+        }
+    });
+
+    function onCheckerFileChange(event) {
+        const file = event.target.files[0];
+        if (file) setCheckerFile(file);
+    }
+
+    function setCheckerFile(file) {
+        checkerFile = file;
+        // Hiển preview
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            dropPreview.src = e.target.result;
+            dropPreview.style.display = 'block';
+            dropPlaceholder.style.display = 'none';
+        };
+        reader.readAsDataURL(file);
+        checkBtn.disabled = false;
+        // Reset result
+        const result = document.getElementById('checker-result');
+        result.className = 'checker-result';
+        result.innerHTML = `
+            <div class="drop-icon">🔍</div>
+            <p class="checker-idle-text">Nhấn <strong>"Kiểm tra"</strong> để xác minh ảnh này</p>
+        `;
+    }
+
+    function runHashCheck() {
+        if (!checkerFile) return;
+
+        const btn = document.getElementById('check-btn');
+        const icon = document.getElementById('check-btn-icon');
+        const label = document.getElementById('check-btn-label');
+        btn.disabled = true;
+        icon.textContent = '⏳';
+        label.textContent = 'Đang kiểm tra...';
+
+        const formData = new FormData();
+        formData.append('image', checkerFile);
+
+        fetch('/api/check_image_hash', { method: 'POST', body: formData })
+            .then(r => r.json())
+            .then(data => {
+                renderCheckerResult(data);
+            })
+            .catch(err => {
+                renderCheckerError('Lỗi kết nối: ' + err.message);
+            })
+            .finally(() => {
+                btn.disabled = false;
+                icon.textContent = '🔎';
+                label.textContent = 'Kiểm tra lại';
+            });
+    }
+
+    function renderCheckerResult(data) {
+        const result = document.getElementById('checker-result');
+
+        if (data.error) {
+            renderCheckerError(data.error);
+            return;
+        }
+
+        const shortHash = data.hash
+            ? data.hash.slice(0, 20) + '...' + data.hash.slice(-8)
+            : 'N/A';
+
+        if (data.found) {
+            const v = data.violation;
+            const timeFormatted = v.timestamp.replace(
+                /(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/,
+                '$3/$2/$1 $4:$5:$6'
+            );
+            const txLine = v.tx_hash
+                ? `<a href="https://sepolia.etherscan.io/tx/${v.tx_hash}" target="_blank"
+                       style="color:var(--accent-cyan);text-decoration:none;font-size:0.7rem;">
+                       ↗️ Xem trên Etherscan
+                   </a>`
+                : '<span style="color:var(--text-muted);font-size:0.7rem;">Chưa ghi blockchain</span>';
+
+            result.className = 'checker-result found';
+            result.innerHTML = `
+                <div class="result-icon">🚨</div>
+                <div class="result-title found">⚠️ Hình ảnh này ĐÃ VI PHẠM!</div>
+                <p class="result-sub">Hình ảnh có mã băm trùng với một vi phạm đã được ghi nhận trong hệ thống.</p>
+                <div class="result-detail">
+                    <div class="result-detail-row">
+                        <span class="result-detail-label">📄 ID Vi phạm</span>
+                        <span class="result-detail-value">#${v.id}</span>
+                    </div>
+                    <div class="result-detail-row">
+                        <span class="result-detail-label">🗑️ Rác ID</span>
+                        <span class="result-detail-value">${v.person_id}</span>
+                    </div>
+                    <div class="result-detail-row">
+                        <span class="result-detail-label">⏰ Thời gian</span>
+                        <span class="result-detail-value">${timeFormatted}</span>
+                    </div>
+                    <div class="result-detail-row">
+                        <span class="result-detail-label">⛓️ Blockchain</span>
+                        <span class="result-detail-value">${txLine}</span>
+                    </div>
+                </div>
+                <div class="result-hash">🔐 SHA-256: ${data.hash}</div>
+            `;
+            addActivity('🚨 Kiểm tra ảnh: Tìm thấy vi phạm #' + v.id, 'danger');
+        } else {
+            result.className = 'checker-result not-found';
+            result.innerHTML = `
+                <div class="result-icon">✅</div>
+                <div class="result-title not-found">Đây là ảnh sạch!</div>
+                <p class="result-sub">Hình ảnh này không khớp với bất kỳ vi phạm nào đã được ghi nhận trong hệ thống.</p>
+                <div class="result-hash">🔐 SHA-256: ${data.hash}</div>
+            `;
+            addActivity('✅ Kiểm tra ảnh: Không có vi phạm', 'normal');
+        }
+    }
+
+    function renderCheckerError(msg) {
+        const result = document.getElementById('checker-result');
+        result.className = 'checker-result';
+        result.innerHTML = `
+            <div class="result-icon">⚠️</div>
+            <div class="result-title" style="color:var(--accent-orange);">Lỗi kiểm tra</div>
+            <p class="result-sub">${msg}</p>
+        `;
+    }
+
+</script>
+
+</body>
+</html>

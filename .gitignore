@@ -1,0 +1,14 @@
+# .gitignore – ngăn commit thông tin nhạy cảm
+.env
+__pycache__/
+*.pyc
+*.pyo
+*.pt
+evidence/
+static/violations/
+violations.db
+*.mov
+*.MOV
+*.mp4
+.venv/
+models/
