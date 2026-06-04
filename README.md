@@ -259,5 +259,5 @@ Smart Contract viết bằng **Solidity 0.8.20**, deploy trên **Ethereum Sepoli
 <h2 align="center"> 🖼️ POSTER TỔNG QUAN HỆ THỐNG </h2>
 
 <p align="center">
-  <img src="ten_file_poster_cua_ban.png" alt="Poster Hệ thống Quản lý Bằng cấp Blockchain" width="100%">
+  <img src="poster.png" alt="Poster Hệ thống Quản lý Bằng cấp Blockchain" width="100%">
 </p>
