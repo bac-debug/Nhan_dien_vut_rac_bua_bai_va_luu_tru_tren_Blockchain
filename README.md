@@ -66,23 +66,13 @@ Cấu trúc chính:
 ## 🚀 3. Một số hình ảnh hệ thống
 
 <p align="center">
-    <em>Giao diện Dashboard chính — Giám sát real-time</em><br/>
-    <img width="1401" height="842" alt="Dashboard" src="screenshot_dashboard.png" />
-</p>
-
-<p align="center">
-    <em>Phát hiện rác và người trên video</em><br/>
-    <img width="1401" height="842" alt="Detection" src="screenshot_detection.png" />
-</p>
-
-<p align="center">
-    <em>Cảnh báo vi phạm vứt rác bừa bãi</em><br/>
-    <img width="1401" height="842" alt="Violation Alert" src="screenshot_violation.png" />
+    <em>Giao diện chính — Giám sát real-time</em><br/>
+    <img width="1401" height="842" alt="Dashboard" src="Screenshot 2026-06-04 082409.png" />
 </p>
 
 <p align="center">
     <em>Lịch sử vi phạm và bằng chứng Blockchain</em><br/>
-    <img width="1401" height="842" alt="Blockchain Evidence" src="screenshot_blockchain.png" />
+    <img width="1401" height="842" alt="Blockchain Evidence" src="Screenshot 2026-06-04 082429.png" />
 </p>
 
 ---
