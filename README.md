@@ -256,3 +256,8 @@ Smart Contract viết bằng **Solidity 0.8.20**, deploy trên **Ethereum Sepoli
 <p align="center">
     ✍️ <em>README này được thiết kế bởi Bac Nguyen</em>
 </p>
+<h2 align="center"> 🖼️ POSTER TỔNG QUAN HỆ THỐNG </h2>
+
+<p align="center">
+  <img src="ten_file_poster_cua_ban.png" alt="Poster Hệ thống Quản lý Bằng cấp Blockchain" width="100%">
+</p>
